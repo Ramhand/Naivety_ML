@@ -3,9 +3,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB
 from sklearn.metrics import accuracy_score, confusion_matrix
+from xgboost import XGBClassifier
 import pickle
 import warnings
 
@@ -63,3 +65,39 @@ plt.show()
 
 with open('./models/play.dat', 'wb') as file:
     pickle.dump(best, file)
+
+other_models = [[XGBClassifier, 'XGB', {'n_estimators': [int(i) for i in np.linspace(100, 500, 5)],
+                                        'learning_rate': np.logspace(-4, 0, num=5)}], [RandomForestClassifier,
+                                                                                       'Random Forest', {
+                                                                                           'n_estimators': [100, 200,
+                                                                                                            300],
+                                                                                           'max_depth': [None, 10, 20,
+                                                                                                         30],
+                                                                                           'min_samples_split': [2, 5,
+                                                                                                                 10],
+                                                                                           'min_samples_leaf': [1, 2,
+                                                                                                                4],
+                                                                                           'bootstrap': [True, False]
+                                                                                       }]]
+other_cms = {}
+
+for i in other_models:
+    model = i[0]()
+    model.fit(xtr, ytr)
+    pred = model.predict(xte)
+    acc = accuracy_score(yte, pred)
+    print(f'{i[1]} Base Accuracy: {acc}')
+    grid = GridSearchCV(estimator=i[0](), scoring='accuracy', cv=10, param_grid=i[2], verbose=1)
+    grid.fit(xtr, ytr)
+    print(f'Grid Search ({i[1]}):\n\tBest Params: {grid.best_params_}\n\tBest Accuracy: {grid.best_score_}')
+    mod = grid.best_estimator_
+    pred = mod.predict(xte)
+    acc = accuracy_score(yte, pred)
+    other_cms[i[1]] = confusion_matrix(yte, pred)
+    print(f'Grid Best {i[1]} Model Prediction Accuracy: {acc}')
+
+fig, axs = plt.subplots(len(other_models), 1, figsize=(5, 7))
+for i in range(len(list(other_cms.keys()))):
+    sns.heatmap(cms[list(cms.keys())[i]], annot=True, fmt='.2f', cbar=True, ax=axs[i])
+plt.show()
+
